@@ -9,7 +9,7 @@ const pixelify = Pixelify_Sans({
 });
 
 const harmond = localFont({
-  src: './fonts/Harmond-SBC.otf',
+  src: './Fgit rm --cached components/photobooth.tsxonts/Harmond-SBC.otf',
   variable: '--font-harmond',
 });
 

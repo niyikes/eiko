@@ -1,7 +1,7 @@
 "use client";
 import { useState } from 'react';
 import LandingScreen from '../components/LandingScreen';
-import PhotoBooth from '@/components/photobooth';
+import PhotoBooth from '../components/PhotoBooth'
 
 export default function Home() {
   const [hasEntered, setHasEntered] = useState(false);
