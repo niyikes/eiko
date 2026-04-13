@@ -8,10 +8,23 @@ const pixelify = Pixelify_Sans({
   subsets: ["latin"],
 });
 
+import localFont from 'next/font/local'
+
 const harmond = localFont({
-  src: './Fgit rm --cached components/photobooth.tsxonts/Harmond-SBC.otf',
+  src: [
+    {
+      path: './Fonts/Harmond-SBC.otf',
+      weight: '600',
+      style: 'normal',
+    },
+    {
+      path: './Fonts/Harmond-SBIC.otf',
+      weight: '600',
+      style: 'italic',
+    },
+  ],
   variable: '--font-harmond',
-});
+})
 
 
 
