@@ -22,7 +22,7 @@ function randInt(a: number, b: number) {return Math.floor(rand(a, b+1))}
 export default function LandingScreen({ onEnter }: { onEnter: () => void }) {
   const [states, setStates] = useState<LetterState[]>(WORD.map(() => ({...DEFAULT})))
 
-  // Mouse Tracking
+  // mouse
   const containerRef = useRef<HTMLDivElement>(null)
   const mouseX = useMotionValue(
     typeof window !== 'undefined' ? window.innerWidth / 2:0
@@ -79,9 +79,6 @@ export default function LandingScreen({ onEnter }: { onEnter: () => void }) {
     //const t = setTimeout(schedule, 1000)
 
     //oh shit i fortot to code today shittttt im gna lose my streak i dont want to lose my streak
-    // bro its 11:50 mama im chasing a ghost do i look
-    //does hackatime count comments in heartbeats?
-    //idk
     //NOOOOOOOOOO I LOST MY STREAK OF 5 DAYS
 
 
@@ -110,7 +107,7 @@ export default function LandingScreen({ onEnter }: { onEnter: () => void }) {
       className="relative flex h-screen w-screen items-center justify-center bg-black cursor-none overflow-hidden"
       onClick={onEnter}
     >
-      {/* Gradient follower */}
+      {/* mouse grad */}
       <motion.div
         className="pointer-events-none absolute rounded-full"
         style={{
@@ -124,7 +121,7 @@ export default function LandingScreen({ onEnter }: { onEnter: () => void }) {
         }}
       />
 
-      {/* The word */}
+      {/* eiko */}
       <h1 className="flex items-baseline select-none">
       {WORD.map((char, i) => {
         const s = states[i]
@@ -169,7 +166,7 @@ export default function LandingScreen({ onEnter }: { onEnter: () => void }) {
       {/* enter */}
       <motion.p
         className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/30 text-[11px] tracking-[0.2em] uppercase font-sans"
-        animate={{ opacity: [0.2, 0.5, 0.2] }}
+        animate={{ opacity: [0.5, 0.9, 0.5] }}
         transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
       >
         press enter or click

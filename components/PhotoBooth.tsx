@@ -4,38 +4,28 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 type Mode = '1' | '4' | '6'
 type AspectRatio = '1/1' | '3/4' | '4/3' | '9/16' | '16/9'
 
-const ASPECTS: AspectRatio[] = ['1/1', '3/4', '4/3', '9/16', '16/9']
-
-const W = 'f0ece4'
-const DIM = '#444'
-const DARK = '#111'
-const BDR = '1pc solid #2a2a2a'
-const BDR_W = '1px solid' + W
+const W = '#f0ece4'
+const DIM = '#666'
+const BDR = '2px solid #2a2a2a'
+const BDR_W = '2px solid ' + W
+const GLOW = `0 0 15px rgba(240, 236, 228, 0.15)`
 
 const DUOTONE_PRESETS = [
-  { name: 'EMBER', color: [255, 80, 20] as [number, number, number] },
   { name: 'ACID', color: [180, 255, 0] as [number, number, number] },
-  { name: 'COLD', color: [20, 120, 255] as [number, number, number] },
+  { name: 'EMBER', color: [242, 53, 53] as [number, number, number] },
   { name: 'BLUSH', color: [255, 60, 140] as [number, number, number] },
-  { name: 'SLIME', color: [0, 220, 120] as [number, number, number] },
-  { name: 'VOID', color: [80, 0, 200] as [number, number, number] },
+  { name: 'VOID', color: [131, 56, 236] as [number, number, number] },
+  { name: 'BREEZE', color: [62, 138, 217] as [number, number, number] },
 ]
 
-const ALL_FX_NAMES = [
-  'invert', 'threshold', 'posterize', 'duotone',
-  'bw', 'sepia', 'xpro', 'expired',
-  'contrast', 'bleach', 'crush', 'halftone'
-]
-
-
-
-const FILTER_GROUPS = [
+const sidebar_filters = [
   {
     label: 'TONE',
     filters: [
       { id: 'invert', label: 'INVERT' },
       { id: 'threshold', label: 'THRESHOLD' },
       { id: 'posterize', label: 'POSTERIZE' },
+      {id: 'halftone', label: 'HALFTONE'},
       { id: 'duotone', label: 'DUOTONE' },
     ]
   },
@@ -54,17 +44,20 @@ const FILTER_GROUPS = [
       { id: 'contrast', label: 'HI-CONTRAST' },
       { id: 'bleach', label: 'BLEACH' },
       { id: 'crush', label: 'CRUSH' },
-      { id: 'halftone', label: 'HALFTONE' },
     ]
   },
 ]
 
-function applyFiltersToCanvas(
+
+function filter_to_cam 
+(
   src: HTMLVideoElement | HTMLCanvasElement,
   dst: HTMLCanvasElement,
   filters: Set<string>,
   grain: number,
-  duotoneColor: [number, number, number]
+  duotoneColor: [number, number, number],
+
+  thresholdVal: number = 128
 ) {
   const w = (src as HTMLVideoElement).videoWidth || (src as HTMLCanvasElement).width || 640
   const h = (src as HTMLVideoElement).videoHeight || (src as HTMLCanvasElement).height || 480
@@ -72,46 +65,70 @@ function applyFiltersToCanvas(
   dst.height = h
   const ctx = dst.getContext('2d')!
   ctx.drawImage(src, 0, 0, w, h)
+  ctx.scale(-1,1)
   const imageData = ctx.getImageData(0, 0, w, h)
   const d = imageData.data
+
+  const gray = new Uint8ClampedArray(w * h)
+
+for (let i = 0, j = 0; i < d.length; i += 4, j++) {
+  gray[j] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]
+  }
+
+const integral = new Uint32Array(w * h)
+for (let y = 0; y < h; y++) {
+  let sum = 0
+  for (let x = 0; x < w; x++) {
+    const idx = y * w + x
+    sum += gray[idx]
+    integral[idx] = sum + (y > 0 ? integral[idx - w] : 0)
+  }
+}
 
   for (let i = 0; i < d.length; i += 4) {
     let r = d[i], g = d[i + 1], b = d[i + 2]
 
-    if (filters.has('bw')) {
-      const gray = 0.299 * r + 0.587 * g + 0.114 * b
-      r = g = b = gray
-    }
+    //black and white
+    if (filters.has('bw')) { const gray = 0.299 * r + 0.587 * g + 0.114 * b; r = g = b = gray }
+
+    //sepia
     if (filters.has('sepia')) {
       const tr = Math.min(255, 0.393 * r + 0.769 * g + 0.189 * b)
       const tg = Math.min(255, 0.349 * r + 0.686 * g + 0.168 * b)
       const tb = Math.min(255, 0.272 * r + 0.534 * g + 0.131 * b)
       r = tr; g = tg; b = tb
     }
-    if (filters.has('invert')) { r = 255 - r; g = 255 - g; b = 255 - b }
-    if (filters.has('threshold')) {
-      const v = (0.299 * r + 0.587 * g + 0.114 * b) > 128 ? 255 : 0
-      r = g = b = v
-    }
-    if (filters.has('posterize')) {
+
+    if (filters.has('invert')) 
+      {
+         r = 255 - r; g = 255 - g; b = 255 - b
+      }
+
+
+    if (filters.has('threshold')) 
+      { 
+        const v = (0.299 * r + 0.587 * g + 0.114 * b) > thresholdVal ? 255 : 0; r = g = b = v
+      }
+
+
+    if (filters.has('posterize'))
+      {
       const lvl = 4
       r = Math.round(r / 255 * (lvl - 1)) / (lvl - 1) * 255
       g = Math.round(g / 255 * (lvl - 1)) / (lvl - 1) * 255
       b = Math.round(b / 255 * (lvl - 1)) / (lvl - 1) * 255
     }
-    if (filters.has('duotone')) {
+
+
+    if (filters.has('duotone'))
+      {
       const gray = 0.299 * r + 0.587 * g + 0.114 * b
       const t = gray / 255
-      r = t * duotoneColor[0]
-      g = t * duotoneColor[1]
-      b = t * duotoneColor[2]
+      r = t * duotoneColor[0]; g = t * duotoneColor[1]; b = t * duotoneColor[2]
     }
-    if (filters.has('xpro')) {
-      r = Math.min(255, r * 1.1 + 10); g = Math.max(0, g * 0.85); b = Math.min(255, b * 1.2 + 20)
-    }
-    if (filters.has('expired')) {
-      r = Math.min(255, r * 1.05 + 15); g = Math.max(0, g * 0.9 + 5); b = Math.max(0, b * 0.7)
-    }
+
+    if (filters.has('xpro')) { r = Math.min(255, r * 1.1 + 10); g = Math.max(0, g * 0.85); b = Math.min(255, b * 1.2 + 20) }
+    if (filters.has('expired')) { r = Math.min(255, r * 1.05 + 15); g = Math.max(0, g * 0.9 + 5); b = Math.max(0, b * 0.7) }
     if (filters.has('contrast')) {
       const f = 2.5
       r = Math.min(255, Math.max(0, f * (r - 128) + 128))
@@ -129,32 +146,37 @@ function applyFiltersToCanvas(
       g = g < 40 ? 0 : g > 220 ? 255 : g
       b = b < 40 ? 0 : b > 220 ? 255 : b
     }
-    if (filters.has('halftone')) {
-      const gray = (0.299 * r + 0.587 * g + 0.114 * b) > 128 ? 255 : 0
-      r = g = b = gray
-    }
     if (grain > 0) {
       const noise = (Math.random() - 0.5) * grain * 2.5
       r = Math.min(255, Math.max(0, r + noise))
       g = Math.min(255, Math.max(0, g + noise))
       b = Math.min(255, Math.max(0, b + noise))
     }
-
     d[i] = r; d[i + 1] = g; d[i + 2] = b
   }
   ctx.putImageData(imageData, 0, 0)
 }
 
+/*
+async function buildString(
+  frames: string[],
+  filters: string[],
+  date: string,
+  showDate: boolean
+): Promise<string> {
+  
+}
+*/
+
 export default function PhotoBooth() {
   const [mode, setMode] = useState<Mode>('4')
-  const [timerSecs, setTimerSecs] = useState(0)
-  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set())
+  const [active_filt, setactive_filt] = useState<Set<string>>(new Set())
   const [grain, setGrain] = useState(20)
   const [duotoneColor, setDuotoneColor] = useState<[number, number, number]>([255, 80, 20])
-  const [aspect, setAspect] = useState<AspectRatio>('3/4')
+  const [aspect] = useState<AspectRatio>('4/3')
   const [frames, setFrames] = useState<(string | null)[]>([null, null, null, null])
   const [cameraOn, setCameraOn] = useState(false)
-  const [camDenied, setCamDenied] = useState(false)
+  const [cam_deny, setcam_deny] = useState(false)
   const [counting, setCounting] = useState(false)
   const [countNum, setCountNum] = useState(3)
   const [flashing, setFlashing] = useState(false)
@@ -163,12 +185,29 @@ export default function PhotoBooth() {
   const [stripDone, setStripDone] = useState(false)
   const [clock, setClock] = useState('00:00:00')
   const [selectedFrame, setSelectedFrame] = useState<string | null>(null)
-
+  const [thresholdVal, setThresholdVal] = useState(128)
   const videoRef = useRef<HTMLVideoElement>(null)
   const fxCanvas = useRef<HTMLCanvasElement>(null)
   const snapCanvas = useRef<HTMLCanvasElement>(null)
   const animRef = useRef<number>(0)
   const streamRef = useRef<MediaStream | null>(null)
+
+  const active_filtRef = useRef(active_filt)
+  const grainRef = useRef(grain)
+  const duotoneColorRef = useRef(duotoneColor)
+  const thresholdValRef = useRef (thresholdVal)
+
+  //the review thing page
+  const [view,setView] = useState<'camera' | 'review' | 'archive' >('camera')
+  const [archive, setArchive] = useState <{id: number, frames: string[], filters: string[], date: string, strip: string}[]>(() => {
+    try {return JSON.parse(localStorage.getItem('eiko-archive') || '[]')} catch {return []}
+  })
+
+  const [reviewFrames, setReviewFrames] = useState<string[]>([])
+  const [reviewFilters, setReviewFilters] = useState<string[]>([])
+  const [showDate, setShowDate] = useState(true)
+  const [selectedArchiveItem, setSelectedArchiveItem] = useState<typeof archive[0] | null>(null)
+  
 
   const stripCount = mode === '1' ? 1 : mode === '4' ? 4 : 6
 
@@ -180,21 +219,38 @@ export default function PhotoBooth() {
     return () => clearInterval(iv)
   }, [])
 
-  const liveLoop = useCallback(() => {
+  useEffect(() => {
+    active_filtRef.current = active_filt
+  }, [active_filt])
+
+  useEffect(() => {
+    grainRef.current = grain
+  }, [grain])
+  
+  useEffect(() => {
+    duotoneColorRef.current = duotoneColor
+  }, [duotoneColor])
+  
+  useEffect(() => {
+    thresholdValRef.current = thresholdVal
+  }, [thresholdVal])
+  
+
+  const tick = useCallback(() => {
     const vid = videoRef.current
     const canvas = fxCanvas.current
     if (vid && canvas && vid.readyState >= 2) {
-      applyFiltersToCanvas(vid, canvas, activeFilters, grain, duotoneColor)
+      filter_to_cam(vid, canvas, active_filtRef.current, grainRef.current, duotoneColorRef.current, thresholdValRef.current)
     }
-    animRef.current = requestAnimationFrame(liveLoop)
-  }, [activeFilters, grain, duotoneColor])
+    animRef.current = requestAnimationFrame(tick)
+  }, [])
 
   useEffect(() => {
     if (cameraOn) {
-      animRef.current = requestAnimationFrame(liveLoop)
+      animRef.current = requestAnimationFrame(tick)
       return () => cancelAnimationFrame(animRef.current)
     }
-  }, [cameraOn, liveLoop])
+  }, [cameraOn, tick])
 
   const startCamera = useCallback(async () => {
     try {
@@ -202,15 +258,15 @@ export default function PhotoBooth() {
       streamRef.current = s
       if (videoRef.current) { videoRef.current.srcObject = s; videoRef.current.style.display = 'block' }
       setCameraOn(true)
-    } catch { setCamDenied(true) }
+    } catch { setcam_deny(true) }
   }, [])
 
-  const doFlash = useCallback(() => {
+  const flash = useCallback(() => {
     setFlashing(true)
     setTimeout(() => setFlashing(false), 110)
   }, [])
 
-  const captureFrame = useCallback((): string | null => {
+  const shoot = useCallback((): string | null => {
     const canvas = fxCanvas.current
     const snap = snapCanvas.current
     if (!canvas || !snap) return null
@@ -223,41 +279,41 @@ export default function PhotoBooth() {
     setShooting(true)
     setStripDone(false)
     setTakenCount(0)
-    setFrames(Array(total).fill(null))
     let taken = 0
+    
     const takeOne = () => {
-      doFlash()
-      const url = captureFrame()
-      taken++
-      setTakenCount(taken)
-      setFrames(prev => { const n = [...prev]; n[taken - 1] = url; return n })
-      if (taken < total) setTimeout(takeOne, 950)
-      else { setShooting(false); setStripDone(true) }
+      setCounting(true) 
+      let n = 3
+      setCountNum(n)
+
+      const cd = setInterval(() => {
+        n--
+        if (n <= 0) {
+          clearInterval(cd)
+          setCounting(false)
+          flash()
+          const url = shoot()
+          taken++
+          setTakenCount(taken)
+          setFrames(prev => { const next = [...prev]; next[taken - 1] = url; return next })
+          if (taken < total) setTimeout(takeOne, 650)
+          else { setShooting(false); setStripDone(true) }
+        } else {
+          setCountNum(n)
+        }
+      }, 650)
     }
     takeOne()
-  }, [doFlash, captureFrame])
+  }, [flash, shoot])
 
   const handleShoot = useCallback(() => {
     if (counting || shooting) return
     if (!cameraOn) { startCamera(); return }
-    const total = stripCount
-    setStripDone(false)
-    setFrames(Array(total).fill(null))
-    setTakenCount(0)
-    if (timerSecs > 0) {
-      setCounting(true)
-      setCountNum(timerSecs)
-      let n = timerSecs
-      const iv = setInterval(() => {
-        n--
-        if (n <= 0) { clearInterval(iv); setCounting(false); runStrip(total) }
-        else setCountNum(n)
-      }, 1000)
-    } else { runStrip(total) }
-  }, [counting, shooting, cameraOn, startCamera, timerSecs, stripCount, runStrip])
-
-  const toggleFilter = (id: string) => {
-    setActiveFilters(prev => {
+    runStrip(stripCount)
+  }, [counting, shooting, cameraOn, startCamera, stripCount, runStrip])
+  
+  const filter_toggle = (id: string) => {
+    setactive_filt(prev => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
       return next
@@ -273,13 +329,8 @@ export default function PhotoBooth() {
 
   const mono = "'Space Mono', monospace"
   const display = "'Bebas Neue', sans-serif"
-  const pixel = "'Pixelify Sans', monospace"
+  const pixFont = "'Pixelify Sans', monospace"
   const harmond = "'Harmond', 'Cormorant Garamond', Georgia, serif"
-
-  const W = '#f0ece4'
-  const DIM = '#666'
-  const BDR = '2px solid #2a2a2a'
-  const BDR_W = '2px solid ' + W
 
   return (
     <div style={{
@@ -289,211 +340,187 @@ export default function PhotoBooth() {
       height: '100vh',
       width: '100%',
       display: 'grid',
-      gridTemplateRows: '58px 1fr 28px',
+      gridTemplateRows: ' 1fr 32px',
       position: 'relative',
-      overflow: 'hidden', // CRITICAL: Fixes horizontal scroll
+      overflow: 'hidden',
     }}>
 
-      {/* NOISE LAYER */}
+      {/* grain/noise */}
       <div style={{
         position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9999, opacity: 0.045,
         backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
       }} />
 
-      {/* ── HEADER ── */}
-      <header style={{ borderBottom: BDR_W, display: 'flex', alignItems: 'stretch' }}>
-        <div style={{ padding: '0 20px', borderRight: BDR_W, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1 }}>
-          <div style={{ fontFamily: harmond, fontStyle: 'italic', fontWeight: 600, fontSize: 30, lineHeight: 1, letterSpacing: '-0.01em' }}>eiko</div>
-          <div style={{ fontFamily: pixel, fontSize: 8, color: DIM, letterSpacing: '0.2em', textTransform: 'uppercase' }}>PHOTOBOOTH</div>
-        </div>
-
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', alignItems: 'center', borderRight: BDR_W, padding: '0 12px' }}>
-          <div style={{
-            whiteSpace: 'nowrap', fontSize: 8, letterSpacing: '0.2em', color: '#222', textTransform: 'uppercase',
-            animation: 'ticker 20s linear infinite',
-          }}>
-            {'· eiko · '.repeat(20)}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          {[
-            { label: cameraOn ? '● LIVE' : '○ OFF', active: cameraOn },
-            { label: 'ARCHIVE' },
-            { label: '↗ EXPORT' },
-          ].map(({ label, active }) => (
-            <div key={label} style={{
-              padding: '0 16px', height: '100%', display: 'flex', alignItems: 'center',
-              fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase',
-              color: active ? W : DIM, borderLeft: BDR, cursor: 'pointer', fontFamily: pixel,
-            }}>{label}</div>
-          ))}
+      {/* HEADER
+      
+        <header style={{ borderBottom: BDR_W, display: 'flex', alignItems: 'center', padding: '0 30px' }}>
+        <div style={{ fontFamily: harmond, fontStyle: 'italic', fontWeight: 600, fontSize: 36, lineHeight: 1, letterSpacing: '-0.02em' }}>
+          eiko
         </div>
       </header>
+      
+      */}
 
-      {/* ── BODY ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', overflow: 'hidden' }}>
 
-        {/* LEFT */}
-        <div style={{ borderRight: BDR_W, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ borderBottom: BDR, padding: '7px 14px', display: 'flex', justifyContent: 'space-between', fontSize: 8, letterSpacing: '0.2em', color: '#444', textTransform: 'uppercase', fontFamily: pixel }}>
-            <span>VIEWFINDER</span>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', overflow: 'hidden' }}>
+
+        {/* left cam*/}
+        <div style={{ borderRight: BDR_W, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden', padding: 20 }}>
+          <div style={{ borderBottom: BDR, padding: '10px 18px', display: 'flex', justifyContent: 'space-between', fontSize: 10, letterSpacing: '0.2em', color: DIM, textTransform: 'uppercase', fontFamily: pixFont, borderRadius: '12px 12px 0 0', background: '#0c0c0c' }}>
+            <span>CAM</span>
             <span style={{ color: cameraOn ? W : '#333' }}>f/2.8 · 1/60 · ISO 400</span>
           </div>
 
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000', padding: 24, position: 'relative', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', bottom: -30, right: -10, fontFamily: display, fontSize: 160, color: '#0d0d0d', lineHeight: 1, pointerEvents: 'none', userSelect: 'none' }}>EIKO</div>
-
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000', position: 'relative', overflow: 'hidden', borderLeft: BDR, borderRight: BDR }}>
+            
             <div style={{
               width: '100%',
-              maxWidth: aspect === '16/9' ? 480 : aspect === '9/16' ? 220 : aspect === '1/1' ? 320 : aspect === '4/3' ? 380 : 280,
+              maxWidth: aspect === '16/9' ? 600 : aspect === '9/16' ? 280 : aspect === '1/1' ? 400 : aspect === '4/3' ? 480 : 350,
               aspectRatio: aspect,
-              borderRadius: 10,
+              borderRadius: 20,
               overflow: 'hidden',
               position: 'relative',
-              border: '1px solid #222',
+              border: '2px solid #222',
               flexShrink: 0,
+              boxShadow: cameraOn ? GLOW : 'none',
+              transition: 'all 0.4s ease'
             }}>
-              {[['top:8px', 'left:8px', '1px 0 0 1px'], ['top:8px', 'right:8px', '1px 1px 0 0'], ['bottom:8px', 'left:8px', '0 0 1px 1px'], ['bottom:8px', 'right:8px', '0 1px 1px 0']].map(([a, b, bw], i) => (
-                <div key={i} style={{ position: 'absolute', width: 14, height: 14, borderColor: 'rgba(240,236,228,0.5)', borderStyle: 'solid', borderWidth: bw, ...Object.fromEntries([a, b].map(s => { const [k, v] = s.split(':'); return [k, v] })) }} />
-              ))}
-
-              {!cameraOn && !camDenied && (
-                <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#2a2a2a', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', background: '#040404', fontFamily: pixel }}>
-                  <div style={{ fontFamily: display, fontSize: 44, color: '#111', lineHeight: 1 }}>[ ]</div>
+              {!cameraOn && !cam_deny && (
+                <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, color: '#2a2a2a', fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', background: '#040404', fontFamily: pixFont }}>
+                  <div style={{ fontFamily: display, fontSize: 50, color: '#111', lineHeight: 1 }}>[ ]</div>
                   <div>CAMERA INACTIVE</div>
                 </div>
               )}
 
               <video ref={videoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'none' }} />
-              <canvas ref={fxCanvas} style={{ width: '100%', height: '100%', objectFit: 'cover', display: cameraOn ? 'block' : 'none', position: 'absolute', inset: 0 }} />
+              <canvas ref={fxCanvas} style={{ width: '100%', height: '100%', objectFit: 'cover', display: cameraOn ? 'block' : 'none', position: 'absolute', inset: 0, transform: 'scaleX(-1)' }} />
 
               {counting && (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)' }}>
-                  <div style={{ fontFamily: display, fontSize: 140, color: W, lineHeight: 1, textShadow: '0 0 30px rgba(255,255,255,0.12)' }}>{countNum}</div>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 20 }}>
+                  <div style={{ fontFamily: pixFont, fontStyle: 'italic', fontSize: 50, color: W, lineHeight: 1, textShadow: '0 0 40px rgba(255,255,255,0.3)' }}>{countNum}</div>
                 </div>
               )}
-              {flashing && <div style={{ position: 'absolute', inset: 0, background: '#fff' }} />}
+              {flashing && <div style={{ position: 'absolute', inset: 0, background: '#fff', zIndex: 30 }} />}
             </div>
           </div>
 
-          <div style={{ borderTop: BDR_W, display: 'flex', height: 82, flexShrink: 0 }}>
+          <div style={{ border: BDR_W, display: 'flex', height: 110, flexShrink: 0, borderRadius: '0 0 12px 12px', overflow: 'hidden', background: '#0c0c0c' }}>
             {frames.map((frame, i) => (
               <div key={i} onClick={() => frame && setSelectedFrame(frame)} style={{ flex: 1, borderRight: i < frames.length - 1 ? BDR : 'none', background: '#040404', position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: frame ? 'zoom-in' : 'default' }}>
                 {frame
                   ? <img src={frame} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-                  : <span style={{ fontFamily: pixel, fontSize: 13, color: '#1a1a1a' }}>✕</span>
+                  : <span style={{ fontFamily: pixFont, fontSize: 18, color: '#1a1a1a' }}>✕</span>
                 }
-                <span style={{ position: 'absolute', bottom: 3, left: 5, fontFamily: pixel, fontSize: 7, color: '#333', letterSpacing: '0.1em' }}>{String(i + 1).padStart(2, '0')}</span>
+                <span style={{ position: 'absolute', bottom: 6, left: 8, fontFamily: pixFont, fontSize: 10, color: DIM, letterSpacing: '0.1em' }}>{String(i + 1).padStart(2, '0')}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* SIDEBAR */}
-        <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', background: '#080808' }}>
-          <div style={{ borderBottom: BDR, padding: '14px 14px' }}>
-            <div style={{ fontFamily: display, fontSize: 10, letterSpacing: '0.3em', color: '#444', marginBottom: 10 }}>SHOOT MODE</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
+        {/* right menu */}
+        <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', background: '#080808', padding: '10px 0' }}>
+          <div style={{ borderBottom: BDR, padding: '20px' }}>
+            <div style={{ fontFamily: display, fontSize: 13, letterSpacing: '0.3em', color: DIM, marginBottom: 12 }}>SHOOT MODE</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
               {([['1', 'SINGLE'], ['4', 'STRIP 4×'], ['6', 'BURST 6×']] as [Mode, string][]).map(([m, label]) => (
                 <button key={m} onClick={() => handleModeChange(m)} style={{
                   background: mode === m ? '#111' : 'none',
-                  border: `1px solid ${mode === m ? W : '#222'}`,
+                  border: `2px solid ${mode === m ? W : '#222'}`,
                   color: mode === m ? W : '#555',
-                  fontFamily: pixel, fontSize: 8, letterSpacing: '0.05em', textTransform: 'uppercase',
-                  padding: '8px 4px', cursor: 'pointer', textAlign: 'left', lineHeight: 1.5,
+                  fontFamily: pixFont, fontSize: 10, letterSpacing: '0.05em', textTransform: 'uppercase',
+                  padding: '12px 6px', cursor: 'pointer', textAlign: 'left', lineHeight: 1.5,
+                  borderRadius: '8px',
+                  boxShadow: mode === m ? GLOW : 'none',
+                  transition: '0.2s ease'
                 }}>
-                  <span style={{ fontFamily: display, fontSize: 20, display: 'block', lineHeight: 1, marginBottom: 2 }}>{m}</span>
+                  <span style={{ fontFamily: display, fontSize: 24, display: 'block', lineHeight: 1, marginBottom: 2 }}>{m}</span>
                   {label}
                 </button>
               ))}
             </div>
           </div>
 
-          <div style={{ borderBottom: BDR, padding: '12px 14px' }}>
-            <div style={{ fontFamily: display, fontSize: 10, letterSpacing: '0.3em', color: '#444', marginBottom: 8 }}>TIMER</div>
-            <div style={{ display: 'flex', gap: 3 }}>
-              {([['OFF', 0], ['3s', 3], ['5s', 5], ['10s', 10]] as [string, number][]).map(([label, val]) => (
-                <button key={label} onClick={() => setTimerSecs(val)} style={{
-                  flex: 1, background: timerSecs === val ? '#111' : 'none',
-                  border: `1px solid ${timerSecs === val ? W : '#222'}`,
-                  color: timerSecs === val ? W : '#555',
-                  fontFamily: pixel, fontSize: 8, padding: '7px 2px', cursor: 'pointer', textAlign: 'center',
-                }}>{label}</button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ borderBottom: BDR, padding: '12px 14px' }}>
-            <div style={{ fontFamily: display, fontSize: 10, letterSpacing: '0.3em', color: '#444', marginBottom: 8 }}>ASPECT RATIO</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-              {ASPECTS.map(a => (
-                <button key={a} onClick={() => setAspect(a)} style={{
-                  background: aspect === a ? '#111' : 'none',
-                  border: `1px solid ${aspect === a ? W : '#222'}`,
-                  color: aspect === a ? W : '#555',
-                  fontFamily: pixel, fontSize: 8, padding: '5px 8px', cursor: 'pointer',
-                }}>{a}</button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ borderBottom: BDR, padding: '12px 14px' }}>
-            <div style={{ fontFamily: display, fontSize: 10, letterSpacing: '0.3em', color: '#444', marginBottom: 8 }}>FILTERS — LAYER EM</div>
-            {FILTER_GROUPS.map(group => (
-              <div key={group.label} style={{ marginBottom: 10 }}>
-                <div style={{ fontFamily: pixel, fontSize: 7, letterSpacing: '0.2em', color: '#333', marginBottom: 5, textTransform: 'uppercase' }}>// {group.label}</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+          <div style={{ borderBottom: BDR, padding: '20px' }}>
+            <div style={{ fontFamily: display, fontSize: 13, letterSpacing: '0.3em', color: DIM, marginBottom: 10 }}>FILTERS</div>
+            {sidebar_filters.map(group => (
+              <div key={group.label} style={{ marginBottom: 14 }}>
+                <div style={{ fontFamily: pixFont, fontSize: 9, letterSpacing: '0.2em', color: '#444', marginBottom: 8, textTransform: 'uppercase' }}>// {group.label}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {group.filters.map(f => (
-                    <button key={f.id} onClick={() => toggleFilter(f.id)} style={{
-                      background: activeFilters.has(f.id) ? '#111' : 'none',
-                      border: `1px solid ${activeFilters.has(f.id) ? W : '#222'}`,
-                      color: activeFilters.has(f.id) ? W : '#555',
-                      fontFamily: pixel, fontSize: 7, textTransform: 'uppercase',
-                      padding: '4px 7px', cursor: 'pointer',
+                    <button key={f.id} onClick={() => filter_toggle(f.id)} style={{
+                      background: active_filt.has(f.id) ? '#111' : 'none',
+                      border: `2px solid ${active_filt.has(f.id) ? W : '#222'}`,
+                      color: active_filt.has(f.id) ? W : '#555',
+                      fontFamily: pixFont, fontSize: 10, textTransform: 'uppercase',
+                      padding: '6px 10px', cursor: 'pointer',
+                      borderRadius: '6px',
+                      boxShadow: active_filt.has(f.id) ? GLOW : 'none',
                     }}>{f.label}</button>
                   ))}
                 </div>
               </div>
             ))}
 
-            {activeFilters.has('duotone') && (
-              <div style={{ marginTop: 10, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {active_filt.has('duotone') && (
+              <div style={{ marginTop: 12, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {DUOTONE_PRESETS.map(p => (
-                  <button key={p.name} onClick={() => setDuotoneColor(p.color)} style={{ padding: '4px 6px', fontSize: '7px', fontFamily: pixel, background: `rgb(${p.color.join(',')})`, color: p.name === 'ACID' ? '#000' : '#fff', border: 'none', cursor: 'pointer' }}>
+                  <button key={p.name} onClick={() => setDuotoneColor(p.color)} style={{ padding: '6px 10px', fontSize: '10px', borderRadius: '4px', fontFamily: pixFont, background: `rgb(${p.color.join(',')})`, color: p.name === 'ACID' ? '#000' : '#fff', border: 'none', cursor: 'pointer' }}>
                     {p.name}
                   </button>
                 ))}
               </div>
             )}
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
-              <span style={{ fontFamily: pixel, fontSize: 7, color: '#444' }}>GRAIN</span>
+            {active_filt.has('threshold') && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
+                <span style={{ fontFamily: pixFont, fontSize: 10, color: DIM }}>THRESHOLD</span>
+                <input
+                  type="range" min={0} max={255} value={thresholdVal}
+                  onChange={e => setThresholdVal(+e.target.value)}
+                  style={{ flex: 1, accentColor: W }}
+                />
+                <span style={{ fontFamily: pixFont, fontSize: 11, color: DIM, width: 25, textAlign: 'right' }}>{thresholdVal}</span>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 18 }}>
+              <span style={{ fontFamily: pixFont, fontSize: 10, color: DIM }}>GRAIN</span>
               <input type="range" min={0} max={100} value={grain} onChange={e => setGrain(+e.target.value)} style={{ flex: 1, accentColor: W }} />
-              <span style={{ fontFamily: pixel, fontSize: 8, color: '#666', width: 22, textAlign: 'right' }}>{grain}</span>
+              <span style={{ fontFamily: pixFont, fontSize: 11, color: DIM, width: 25, textAlign: 'right' }}>{grain}</span>
             </div>
           </div>
 
           <div style={{ flex: 1 }} />
 
-          <div style={{ padding: 14 }}>
+          <div style={{ padding: '16px 20px', borderTop: BDR }}>
             <button onClick={handleShoot} disabled={counting || shooting} style={{
-              width: '100%', background: (counting || shooting) ? '#0d0d0d' : W,
-              border: (counting || shooting) ? `2px solid ${W}` : 'none',
-              fontFamily: display, fontSize: 26, letterSpacing: '0.25em',
-              color: (counting || shooting) ? W : '#000', padding: '13px 16px', cursor: (counting || shooting) ? 'default' : 'pointer',
+              width: '100%',
+              background: 'none',
+              color: (counting || shooting) ? DIM : W,
+              border: `1px solid ${(counting || shooting) ? '#333' : W}`,
+              fontFamily: pixFont,
+              fontSize: 11,
+              letterSpacing: '0.3em',
+              padding: '14px 20px',
+              borderRadius: '6px',
+              cursor: (counting || shooting) ? 'not-allowed' : 'pointer',
+              transition: '0.2s ease',
+              textTransform: 'uppercase',
             }}>
-              <span>⬤</span> {counting ? 'COUNTING...' : shooting ? `${takenCount}/${stripCount}` : stripDone ? 'RESHOOT' : 'SHOOT'}
+              {counting ? `${countNum}` : shooting ? `${takenCount} / ${stripCount}` : stripDone ? '↺  RESHOOT' : '⬤  SHOOT'}
             </button>
           </div>
+          
+
         </div>
       </div>
 
-      <footer style={{ borderTop: BDR_W, display: 'flex', alignItems: 'center', height: 28, padding: '0 8px' }}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 14, fontSize: 7, fontFamily: pixel, color: '#444', letterSpacing: '0.15em' }}>
-          <span style={{ fontFamily: harmond, fontStyle: 'italic', fontSize: 11, color: '#666' }}>eiko</span>
+      <footer style={{ borderTop: BDR_W, display: 'flex', alignItems: 'center', height: 32, padding: '0 20px' }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 20, fontSize: 9, fontFamily: pixFont, color: DIM, letterSpacing: '0.15em' }}>
+          <span style={{ fontFamily: harmond, fontStyle: 'italic', fontSize: 14, color: '#666' }}>eiko</span>
           <span>—</span>
-          <span>FILTER: {[...activeFilters].join('+').toUpperCase() || 'RAW'}</span>
+          <span style={{color: W}}>FILTER: {[...active_filt].join('+').toUpperCase() || 'RAW'}</span>
           <span>—</span>
           <span>{clock}</span>
           <span>—</span>
@@ -501,13 +528,13 @@ export default function PhotoBooth() {
         </div>
       </footer>
 
-      {/* LIGHTBOX */}
+      {/* light */}
       {selectedFrame && (
-        <div onClick={() => setSelectedFrame(null)} style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40, cursor: 'zoom-out' }}>
-          <img src={selectedFrame} style={{ maxWidth: '90%', maxHeight: '80%', border: BDR_W }} />
-          <div style={{ marginTop: 20, display: 'flex', gap: 20 }}>
-            <a href={selectedFrame} download={`eiko-${Date.now()}.jpg`} onClick={(e) => e.stopPropagation()} style={{ fontFamily: display, fontSize: 24, color: '#000', background: W, padding: '10px 30px', textDecoration: 'none', letterSpacing: '0.1em' }}>DOWNLOAD</a>
-            <button style={{ fontFamily: display, fontSize: 24, color: W, background: 'none', border: BDR_W, padding: '10px 30px' }}>CLOSE</button>
+        <div onClick={() => setSelectedFrame(null)} style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.95)', backdropFilter: 'blur(10px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40, cursor: 'zoom-out' }}>
+          <img src={selectedFrame} style={{ maxWidth: '90%', maxHeight: '75%', border: BDR_W, borderRadius: '24px', boxShadow: '0 0 60px rgba(255,255,255,0.1)' }} alt="Captured" />
+          <div style={{ marginTop: 30, display: 'flex', gap: 20 }}>
+            <a href={selectedFrame} download={`eiko-${Date.now()}.jpg`} onClick={(e) => e.stopPropagation()} style={{ fontFamily: display, fontSize: 28, color: '#000', background: W, padding: '12px 40px', textDecoration: 'none', letterSpacing: '0.1em', borderRadius: '12px' }}>DOWNLOAD</a>
+            <button onClick={() => setSelectedFrame(null)} style={{ fontFamily: display, fontSize: 28, color: W, background: 'none', border: BDR_W, padding: '12px 40px', borderRadius: '12px' }}>CLOSE</button>
           </div>
         </div>
       )}
@@ -515,10 +542,11 @@ export default function PhotoBooth() {
       <canvas ref={snapCanvas} style={{ display: 'none' }} />
 
       <style>{`
-        @keyframes ticker { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
-        button:hover:not(:disabled) { filter: brightness(1.15); }
-        ::-webkit-scrollbar { width: 3px; background: #080808; }
-        ::-webkit-scrollbar-thumb { background: #2a2a2a; }
+        button:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.1); }
+        button:active:not(:disabled) { transform: translateY(0px); }
+        ::-webkit-scrollbar { width: 5px; background: #080808; }
+        ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 10px; }
+        input[type=range] { cursor: pointer; }
       `}</style>
     </div>
   )
