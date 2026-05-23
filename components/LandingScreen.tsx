@@ -21,15 +21,11 @@ function randInt(a: number, b: number) {return Math.floor(rand(a, b+1))}
 
 export default function LandingScreen({ onEnter }: { onEnter: () => void }) {
   const [states, setStates] = useState<LetterState[]>(WORD.map(() => ({...DEFAULT})))
+  const [mounted, setMounted] = useState(false)
 
-  // mouse
   const containerRef = useRef<HTMLDivElement>(null)
-  const mouseX = useMotionValue(
-    typeof window !== 'undefined' ? window.innerWidth / 2:0
-  )
-  const mouseY = useMotionValue(
-    typeof window !== 'undefined' ? window.innerHeight / 2:0
-  );
+  const mouseX = useMotionValue(0)
+  const mouseY = useMotionValue(0)
   const springConfig = { damping: 30, stiffness: 120, mass:0.8 };
   const smoothX = useSpring(mouseX, springConfig);
   const smoothY = useSpring(mouseY, springConfig);
@@ -81,6 +77,9 @@ export default function LandingScreen({ onEnter }: { onEnter: () => void }) {
     //oh shit i fortot to code today shittttt im gna lose my streak i dont want to lose my streak
     //NOOOOOOOOOO I LOST MY STREAK OF 5 DAYS
 
+    setMounted(true)
+    mouseX.set(window.innerWidth / 2)
+    mouseY.set(window.innerHeight / 2)
 
     const onMove = (e: MouseEvent) => {
       const rect = containerRef.current?.getBoundingClientRect()
@@ -108,18 +107,20 @@ export default function LandingScreen({ onEnter }: { onEnter: () => void }) {
       onClick={onEnter}
     >
       {/* mouse grad */}
-      <motion.div
-        className="pointer-events-none absolute rounded-full"
-        style={{
-          left: glowLeft,
-          top: glowTop,
-          translateX: '-50%',
-          translateY: '-50%',
-          width: 320,
-          height: 320,
-          background: 'radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%)',
-        }}
-      />
+      {mounted && (
+        <motion.div
+          className="pointer-events-none absolute rounded-full"
+          style={{
+            left: glowLeft,
+            top: glowTop,
+            translateX: '-50%',
+            translateY: '-50%',
+            width: 320,
+            height: 320,
+            background: 'radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%)',
+          }}
+        />
+      )}
 
       {/* eiko */}
       <h1 className="flex items-baseline select-none">
