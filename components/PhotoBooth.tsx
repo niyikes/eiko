@@ -52,6 +52,8 @@ const sidebar_filters = [
       { id: 'sepia', label: 'SEPIA' },
       { id: 'xpro', label: 'X-PRO' },
       { id: 'expired', label: 'EXPIRED' },
+      { id: 'crt', label: 'CRT' },
+      { id: 'glow', label: 'GLOW' },
     ]
   },
   {
@@ -133,20 +135,65 @@ function filter_to_cam(
     }
     d[i] = r; d[i + 1] = g; d[i + 2] = b
   }
+
   ctx.putImageData(imageData, 0, 0)
+
+  if (filters.has('crt')) {
+    const srcData = ctx.getImageData(0, 0, w, h)
+    const sd = srcData.data
+    for (let y = 0; y < h; y++) {
+      const line = y % 3
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4
+        const col = x % 3
+        if (line === 2) {
+          sd[i] *= 0.3; sd[i+1] *= 0.3; sd[i+2] *= 0.3
+        } else if (col === 0) {
+          sd[i+1] *= 0.5; sd[i+2] *= 0.5
+        } else if (col === 1) {
+          sd[i] *= 0.5; sd[i+2] *= 0.5
+        } else {
+          sd[i] *= 0.5; sd[i+1] *= 0.5
+        }
+      }
+    }
+    ctx.putImageData(srcData, 0, 0)
+  }
+
+  if (filters.has('glow')) {
+    const tmp = document.createElement('canvas')
+    tmp.width = w
+    tmp.height = h
+    tmp.getContext('2d')!.drawImage(dst, 0, 0)
+    ctx.save()
+    ctx.filter = 'blur(8px)'
+    ctx.globalAlpha = 0.55
+    ctx.globalCompositeOperation = 'screen'
+    ctx.drawImage(tmp, 0, 0)
+    ctx.filter = 'blur(18px)'
+    ctx.globalAlpha = 0.3
+    ctx.drawImage(tmp, 0, 0)
+    ctx.restore()
+  }
+
   if (filters.has('halftone')) {
     const srcData = ctx.getImageData(0, 0, w, h)
     const sd = srcData.data
     ctx.fillStyle = '#000000'
     ctx.fillRect(0, 0, w, h)
-    ctx.fillStyle = '#ffffff'
     for (let y = 0; y < h; y += halftone_size) {
       for (let x = 0; x < w; x += halftone_size) {
         const i = (Math.floor(y) * w + Math.floor(x)) * 4
         if (i >= sd.length) continue
         const brightness = (0.299 * sd[i] + 0.587 * sd[i + 1] + 0.114 * sd[i + 2]) / 255
-        const rad = brightness * (halftone_size / 2)
+        const dotBrightness = filters.has('duotone')
+          ? Math.pow(brightness, 0.5)
+          : brightness
+        const rad = dotBrightness * (halftone_size / 2)
         if (rad > 0.2) {
+          ctx.fillStyle = filters.has('duotone')
+            ? `rgb(${sd[i]},${sd[i+1]},${sd[i+2]})`
+            : '#ffffff'
           ctx.beginPath()
           ctx.arc(x + halftone_size / 2, y + halftone_size / 2, rad, 0, Math.PI * 2)
           ctx.fill()
@@ -174,6 +221,7 @@ export default function PhotoBooth() {
   const [thresholdVal, setThresholdVal] = useState(128)
   const [halftone_size, setHalftone_size] = useState(8)
   const [currentTexture, setCurrentTexture] = useState<string>('')
+  const [mousePos, setMousePos] = useState({ x: -100, y: -100 })
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const fxCanvas = useRef<HTMLCanvasElement>(null)
@@ -197,6 +245,12 @@ export default function PhotoBooth() {
   useEffect(() => {
     const idx = Math.floor(Math.random() * OVERLAY_TEXTURES.length)
     setCurrentTexture(OVERLAY_TEXTURES[idx])
+
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePos({ x: e.clientX, y: e.clientY })
+    }
+    window.addEventListener('mousemove', handleMouseMove)
+    return () => window.removeEventListener('mousemove', handleMouseMove)
   }, [])
 
   const tick = useCallback(() => {
@@ -295,7 +349,20 @@ export default function PhotoBooth() {
     : 'none'
 
   return (
-    <div style={{ background: '#0d0d0d', color: W, fontFamily: mono, height: '100vh', width: '100%', display: 'grid', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ background: '#0d0d0d', color: W, fontFamily: mono, height: '100vh', width: '100%', display: 'grid', position: 'relative', overflow: 'hidden', cursor: 'none' }}>
+
+      <div style={{
+        position: 'fixed',
+        left: mousePos.x,
+        top: mousePos.y,
+        width: '12px',
+        height: '12px',
+        backgroundColor: '#ffffff',
+        borderRadius: '50%',
+        pointerEvents: 'none',
+        transform: 'translate(-50%, -50%)',
+        zIndex: 999999
+      }} />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 420px', overflow: 'hidden', height: '100vh' }}>
 
@@ -304,7 +371,7 @@ export default function PhotoBooth() {
           <div style={{
             position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
             background: textureBg,
-            opacity: 0.9,
+            opacity: 0.5,
             mixBlendMode: 'multiply' as const,
           }} />
 
@@ -359,14 +426,11 @@ export default function PhotoBooth() {
           <div style={{
             position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
             background: textureBg,
-            opacity: 0.9,
+            opacity: 0.5,
             mixBlendMode: 'multiply' as const,
           }} />
 
-          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0, background: '#121212', opacity: 0.4
-
-      
-           }} />
+          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0, background: '#121212', opacity: 0.4 }} />
 
           <div style={{ borderBottom: BDR, padding: '0 24px 24px 24px', position: 'relative', zIndex: 1 }}>
             <div style={{ fontFamily: display, fontSize: 14, letterSpacing: '0.2em', color: DIM, marginBottom: 16 }}>SHOOT MODE</div>
@@ -435,11 +499,11 @@ export default function PhotoBooth() {
       </div>
 
       {selectedFrame && (
-        <div onClick={() => setSelectedFrame(null)} style={{ position: 'fixed', inset: 0, zIndex: 10000, background: '#050505f5', backdropFilter: 'blur(12px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40, cursor: 'zoom-out' }}>
+        <div onClick={() => setSelectedFrame(null)} style={{ position: 'fixed', inset: 0, zIndex: 10000, background: '#050505f5', backdropFilter: 'blur(12px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40, cursor: 'none' }}>
           <img src={selectedFrame} style={{ maxWidth: '90%', maxHeight: '70%', border: BDR, borderRadius: '16px' }} alt="Captured" />
           <div style={{ marginTop: 30, display: 'flex', gap: 16 }}>
             <a href={selectedFrame} download={`booth-${Date.now()}.jpg`} onClick={(e) => e.stopPropagation()} style={{ fontFamily: display, fontSize: 24, color: '#000', background: W, padding: '12px 36px', textDecoration: 'none', letterSpacing: '0.05em', borderRadius: '10px', fontWeight: 'bold' }}>DOWNLOAD</a>
-            <button onClick={() => setSelectedFrame(null)} style={{ fontFamily: display, fontSize: 24, color: W, background: '#1a1a1a', border: BDR, padding: '12px 36px', borderRadius: '10px', cursor: 'pointer' }}>CLOSE</button>
+            <button onClick={() => setSelectedFrame(null)} style={{ fontFamily: display, fontSize: 24, color: W, background: '#1a1a1a', border: BDR, padding: '12px 36px', borderRadius: '10px' }}>CLOSE</button>
           </div>
         </div>
       )}
@@ -451,7 +515,8 @@ export default function PhotoBooth() {
         button:active:not(:disabled) { transform: translateY(0px); }
         ::-webkit-scrollbar { width: 6px; background: #121212; }
         ::-webkit-scrollbar-thumb { background: #222; border-radius: 10px; }
-        input[type=range] { cursor: pointer; }
+        input[type=range] { cursor: none; }
+        a { cursor: none; }
       `}</style>
     </div>
   )
