@@ -246,6 +246,7 @@ export default function PhotoBooth() {
   useEffect(() => {
     const idx = Math.floor(Math.random() * OVERLAY_TEXTURES.length)
     setCurrentTexture(OVERLAY_TEXTURES[idx])
+    OVERLAY_TEXTURES.forEach(src => { const img = new Image(); img.src = src })
 
     const handleMouseMove = (e: MouseEvent) => {
       if (dotRef.current) {
@@ -379,7 +380,7 @@ const runStrip = useCallback((total: number) => {
   if (!filled.length) return
 
     const img_w = 600
-    const img_h = 400
+    const img_h = 450
     const pad = 20
     const label_h = 80
     const total_h = (img_h + pad) * filled.length + pad + label_h
@@ -403,11 +404,12 @@ const runStrip = useCallback((total: number) => {
       })
     }
 
-    ctx.fillStyle = '#f0ece4'
-    ctx.font = 'bold 42px serif'
-    ctx.letterSpacing = '8px'
+    ctx.fillStyle = 'rgba(255,255,255,0.9)'
+    ctx.font = '300 32px "Harmond", "Garamond", "Georgia", serif'
+    ctx.letterSpacing = '6px'
     ctx.textAlign = 'center'
-    ctx.fillText('eiko', out.width/2, total_h - 22)
+    ctx.fillText('eiko', out.width / 2, total_h - 28)
+
     const link = document.createElement('a')
     link.href = out.toDataURL('image/jpeg', 0.95)
     link.download = `eiko-${Date.now()}.jpg`
@@ -477,20 +479,21 @@ const runStrip = useCallback((total: number) => {
             </div>
           </div>
 
-        <div style={{ display: 'flex', height: 120, flexShrink: 0, borderRadius: 16, overflow: 'hidden', background: '#121212', border: BDR, padding: 8, gap: 8, zIndex: 1 }}>
+        <div style={{ display: 'flex', height: 120, flexShrink: 0, borderRadius: 16, overflowX: 'auto', background: '#121212', border: BDR, padding: 8, gap: 8, zIndex: 1, justifyContent: 'center', alignItems: 'center' }}>
           {frames.map((frame, i) => (
             <div
               key={i}
-              style={{ flex: 1, background: '#050505', position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: frame ? '1px solid #333' : '1px dashed #222' }}
-            >
+              style={{ flexShrink: 0, width: 140, height: 96, background: '#050505', position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: frame ? '1px solid #333' : '1px dashed #222' }}>
               {frame ? (
+
+
                 <>
                   <img
                     src={frame}
                     onClick={() => setSelectedFrame(frame)}
                     onMouseEnter={() => setCursorType('zoom-in')}
                     onMouseLeave={() => setCursorType('default')}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in' }}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain', cursor: 'zoom-in' }}
                     alt=""
                   />
                   <button
@@ -508,19 +511,21 @@ const runStrip = useCallback((total: number) => {
               <span style={{ position: 'absolute', bottom: 6, left: 8, fontFamily: pixFont, fontSize: 9, color: DIM, letterSpacing: '0.1em' }}>{String(i + 1).padStart(2, '0')}</span>
             </div>
           ))}
-          
           {stripDone && (
-              <button
-                onClick={downloadStrip}
-                onMouseEnter={() => setCursorType('pointer')}
-                onMouseLeave={() => setCursorType('default')}
-                style={{ flexShrink: 0, width: 36, background: '#f0ece4', border: 'none', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: pixFont, fontSize: 10, color: '#000', writingMode: 'vertical-rl', letterSpacing: '0.15em', fontWeight: 'bold' }}
-              >
-                ↓ SAVE
-              </button>
-            )}
-          </div>
+            <button
+              onClick={downloadStrip}
+              onMouseEnter={() => setCursorType('pointer')}
+              onMouseLeave={() => setCursorType('default')}
+              style={{ flexShrink: 0, width: 32, height: 32, alignSelf: 'center', background: 'none', border: '1px solid #333', borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', transition: 'color 0.2s, border-color 0.2s' }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3v13M7 11l5 5 5-5"/>
+                <path d="M5 21h14"/>
+              </svg>
+            </button>
+          )}
         </div>
+      </div>
 
 
       <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', borderLeft: BDR, padding: '24px 0', position: 'relative' }}>
