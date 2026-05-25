@@ -221,8 +221,9 @@ export default function PhotoBooth() {
   const [thresholdVal, setThresholdVal] = useState(128)
   const [halftone_size, setHalftone_size] = useState(8)
   const [currentTexture, setCurrentTexture] = useState<string>('')
-  const [mousePos, setMousePos] = useState({ x: -100, y: -100 })
+  const [cursorType, setCursorType] = useState<'default' | 'pointer' | 'zoom-in'>('default')
 
+  const dotRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const fxCanvas = useRef<HTMLCanvasElement>(null)
   const snapCanvas = useRef<HTMLCanvasElement>(null)
@@ -233,8 +234,6 @@ export default function PhotoBooth() {
   const duotoneColorRef = useRef(duotoneColor)
   const thresholdValRef = useRef(thresholdVal)
   const halftone_sizeRef = useRef(halftone_size)
-
-  const [cursorType, setCursorType] = useState<'default' | 'pointer' | 'zoom-in'>('default')
 
   const stripCount = mode === '1' ? 1 : mode === '4' ? 4 : 6
 
@@ -249,16 +248,11 @@ export default function PhotoBooth() {
     setCurrentTexture(OVERLAY_TEXTURES[idx])
 
     const handleMouseMove = (e: MouseEvent) => {
-    setMousePos({ x: e.clientX, y: e.clientY })
-    const el = document.elementFromPoint(e.clientX, e.clientY)
-    if (!el) return
-    const tag = el.tagName.toLowerCase()
-    const computed = window.getComputedStyle(el).cursor
-    if (computed === 'zoom-in') setCursorType('zoom-in')
-    else if (computed === 'pointer' || tag === 'button' || tag === 'a' || tag === 'input') setCursorType('pointer')
-    else setCursorType('default')
-  }
-
+      if (dotRef.current) {
+        dotRef.current.style.left = e.clientX + 'px'
+        dotRef.current.style.top = e.clientY + 'px'
+      }
+    }
 
     window.addEventListener('mousemove', handleMouseMove)
     return () => window.removeEventListener('mousemove', handleMouseMove)
@@ -362,10 +356,10 @@ export default function PhotoBooth() {
   return (
     <div style={{ background: '#0d0d0d', color: W, fontFamily: mono, height: '100vh', width: '100%', display: 'grid', position: 'relative', overflow: 'hidden', cursor: 'none' }}>
 
-      <div style={{
+      <div ref={dotRef} style={{
         position: 'fixed',
-        left: mousePos.x,
-        top: mousePos.y,
+        left: '-100px',
+        top: '-100px',
         width: cursorType === 'pointer' ? '8px' : '10px',
         height: cursorType === 'pointer' ? '8px' : '10px',
         border: '1.5px solid #f0ece4',
@@ -423,7 +417,13 @@ export default function PhotoBooth() {
 
           <div style={{ display: 'flex', height: 120, flexShrink: 0, borderRadius: 16, overflow: 'hidden', background: '#121212', border: BDR, padding: 8, gap: 8, zIndex: 1 }}>
             {frames.map((frame, i) => (
-              <div key={i} onClick={() => frame && setSelectedFrame(frame)} style={{ flex: 1, background: '#050505', position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: frame ? 'zoom-in' : 'default', borderRadius: 8, border: frame ? '1px solid #333' : '1px dashed #222' }}>
+              <div
+                key={i}
+                onClick={() => frame && setSelectedFrame(frame)}
+                onMouseEnter={() => { if (frame) setCursorType('zoom-in') }}
+                onMouseLeave={() => setCursorType('default')}
+                style={{ flex: 1, background: '#050505', position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: frame ? 'zoom-in' : 'default', borderRadius: 8, border: frame ? '1px solid #333' : '1px dashed #222' }}
+              >
                 {frame
                   ? <img src={frame} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
                   : <span style={{ fontFamily: pixFont, fontSize: 16, color: '#222' }}>✕</span>
@@ -449,7 +449,13 @@ export default function PhotoBooth() {
             <div style={{ fontFamily: display, fontSize: 14, letterSpacing: '0.2em', color: DIM, marginBottom: 16 }}>SHOOT MODE</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
               {([['1', 'SINGLE'], ['4', 'STRIP 4×'], ['6', 'BURST 6×']] as [Mode, string][]).map(([m, label]) => (
-                <button key={m} onClick={() => handleModeChange(m)} style={{ background: mode === m ? '#1a1a1a' : '#090909', border: `2px solid ${mode === m ? W : '#222'}`, color: mode === m ? W : '#666', fontFamily: pixFont, fontSize: 10, letterSpacing: '0.05em', textTransform: 'uppercase', padding: '16px 12px', cursor: 'pointer', textAlign: 'left', lineHeight: 1.5, borderRadius: '10px', transition: 'all 0.2s ease' }}>
+                <button
+                  key={m}
+                  onClick={() => handleModeChange(m)}
+                  onMouseEnter={() => setCursorType('pointer')}
+                  onMouseLeave={() => setCursorType('default')}
+                  style={{ background: mode === m ? '#1a1a1a' : '#090909', border: `2px solid ${mode === m ? W : '#222'}`, color: mode === m ? W : '#666', fontFamily: pixFont, fontSize: 10, letterSpacing: '0.05em', textTransform: 'uppercase', padding: '16px 12px', cursor: 'pointer', textAlign: 'left', lineHeight: 1.5, borderRadius: '10px', transition: 'all 0.2s ease' }}
+                >
                   <span style={{ fontFamily: display, fontSize: 28, display: 'block', lineHeight: 1, marginBottom: 4, color: mode === m ? W : '#333' }}>{m}</span>
                   {label}
                 </button>
@@ -464,7 +470,15 @@ export default function PhotoBooth() {
                 <div style={{ fontFamily: pixFont, fontSize: 10, letterSpacing: '0.15em', color: '#555', marginBottom: 10, textTransform: 'uppercase', borderBottom: '1px solid #1a1a1a', paddingBottom: 4 }}>// {group.label}</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {group.filters.map(f => (
-                    <button key={f.id} onClick={() => filter_toggle(f.id)} style={{ background: active_filt.has(f.id) ? '#1a1a1a' : '#090909', border: `2px solid ${active_filt.has(f.id) ? W : '#222'}`, color: active_filt.has(f.id) ? W : '#666', fontFamily: pixFont, fontSize: 11, textTransform: 'uppercase', padding: '8px 14px', cursor: 'pointer', borderRadius: '8px', transition: 'all 0.2s ease' }}>{f.label}</button>
+                    <button
+                      key={f.id}
+                      onClick={() => filter_toggle(f.id)}
+                      onMouseEnter={() => setCursorType('pointer')}
+                      onMouseLeave={() => setCursorType('default')}
+                      style={{ background: active_filt.has(f.id) ? '#1a1a1a' : '#090909', border: `2px solid ${active_filt.has(f.id) ? W : '#222'}`, color: active_filt.has(f.id) ? W : '#666', fontFamily: pixFont, fontSize: 11, textTransform: 'uppercase', padding: '8px 14px', cursor: 'pointer', borderRadius: '8px', transition: 'all 0.2s ease' }}
+                    >
+                      {f.label}
+                    </button>
                   ))}
                 </div>
               </div>
@@ -473,7 +487,15 @@ export default function PhotoBooth() {
             {active_filt.has('duotone') && (
               <div style={{ marginTop: 16, display: 'flex', gap: 6, flexWrap: 'wrap', background: '#090909', padding: 12, borderRadius: 8, border: '1px solid #222' }}>
                 {DUOTONE_PRESETS.map(p => (
-                  <button key={p.name} onClick={() => setDuotoneColor(p.color)} style={{ padding: '8px 12px', fontSize: '10px', borderRadius: '6px', fontFamily: pixFont, background: `rgb(${p.color.join(',')})`, color: p.name === 'ACID' ? '#000' : '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>{p.name}</button>
+                  <button
+                    key={p.name}
+                    onClick={() => setDuotoneColor(p.color)}
+                    onMouseEnter={() => setCursorType('pointer')}
+                    onMouseLeave={() => setCursorType('default')}
+                    style={{ padding: '8px 12px', fontSize: '10px', borderRadius: '6px', fontFamily: pixFont, background: `rgb(${p.color.join(',')})`, color: p.name === 'ACID' ? '#000' : '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+                  >
+                    {p.name}
+                  </button>
                 ))}
               </div>
             )}
@@ -504,7 +526,13 @@ export default function PhotoBooth() {
           <div style={{ flex: 1 }} />
 
           <div style={{ padding: '0 24px', position: 'relative', zIndex: 1 }}>
-            <button onClick={handleShoot} disabled={counting || shooting} style={{ width: '100%', background: (counting || shooting) ? 'none' : W, color: (counting || shooting) ? DIM : '#000', border: `2px solid ${(counting || shooting) ? '#333' : W}`, fontFamily: pixFont, fontSize: 12, letterSpacing: '0.2em', padding: '16px 20px', borderRadius: '10px', cursor: (counting || shooting) ? 'not-allowed' : 'pointer', transition: '0.2s ease', textTransform: 'uppercase', fontWeight: 'bold' }}>
+            <button
+              onClick={handleShoot}
+              disabled={counting || shooting}
+              onMouseEnter={() => setCursorType('pointer')}
+              onMouseLeave={() => setCursorType('default')}
+              style={{ width: '100%', background: (counting || shooting) ? 'none' : W, color: (counting || shooting) ? DIM : '#000', border: `2px solid ${(counting || shooting) ? '#333' : W}`, fontFamily: pixFont, fontSize: 12, letterSpacing: '0.2em', padding: '16px 20px', borderRadius: '10px', cursor: (counting || shooting) ? 'not-allowed' : 'pointer', transition: '0.2s ease', textTransform: 'uppercase', fontWeight: 'bold' }}
+            >
               {counting ? `${countNum}` : shooting ? `${takenCount} / ${stripCount}` : stripDone ? '↺  RESHOOT' : '⬤  SHOOT'}
             </button>
           </div>
@@ -516,7 +544,14 @@ export default function PhotoBooth() {
           <img src={selectedFrame} style={{ maxWidth: '90%', maxHeight: '70%', border: BDR, borderRadius: '16px' }} alt="Captured" />
           <div style={{ marginTop: 30, display: 'flex', gap: 16 }}>
             <a href={selectedFrame} download={`booth-${Date.now()}.jpg`} onClick={(e) => e.stopPropagation()} style={{ fontFamily: display, fontSize: 24, color: '#000', background: W, padding: '12px 36px', textDecoration: 'none', letterSpacing: '0.05em', borderRadius: '10px', fontWeight: 'bold' }}>DOWNLOAD</a>
-            <button onClick={() => setSelectedFrame(null)} style={{ fontFamily: display, fontSize: 24, color: W, background: '#1a1a1a', border: BDR, padding: '12px 36px', borderRadius: '10px' }}>CLOSE</button>
+            <button
+              onClick={() => setSelectedFrame(null)}
+              onMouseEnter={() => setCursorType('pointer')}
+              onMouseLeave={() => setCursorType('default')}
+              style={{ fontFamily: display, fontSize: 24, color: W, background: '#1a1a1a', border: BDR, padding: '12px 36px', borderRadius: '10px' }}
+            >
+              CLOSE
+            </button>
           </div>
         </div>
       )}
