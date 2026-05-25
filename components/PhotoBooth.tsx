@@ -234,6 +234,8 @@ export default function PhotoBooth() {
   const thresholdValRef = useRef(thresholdVal)
   const halftone_sizeRef = useRef(halftone_size)
 
+  const [cursorType, setCursorType] = useState<'default' | 'pointer' | 'zoom-in'>('default')
+
   const stripCount = mode === '1' ? 1 : mode === '4' ? 4 : 6
 
   useEffect(() => { halftone_sizeRef.current = halftone_size }, [halftone_size])
@@ -247,8 +249,17 @@ export default function PhotoBooth() {
     setCurrentTexture(OVERLAY_TEXTURES[idx])
 
     const handleMouseMove = (e: MouseEvent) => {
-      setMousePos({ x: e.clientX, y: e.clientY })
-    }
+    setMousePos({ x: e.clientX, y: e.clientY })
+    const el = document.elementFromPoint(e.clientX, e.clientY)
+    if (!el) return
+    const tag = el.tagName.toLowerCase()
+    const computed = window.getComputedStyle(el).cursor
+    if (computed === 'zoom-in') setCursorType('zoom-in')
+    else if (computed === 'pointer' || tag === 'button' || tag === 'a' || tag === 'input') setCursorType('pointer')
+    else setCursorType('default')
+  }
+
+
     window.addEventListener('mousemove', handleMouseMove)
     return () => window.removeEventListener('mousemove', handleMouseMove)
   }, [])
@@ -355,13 +366,15 @@ export default function PhotoBooth() {
         position: 'fixed',
         left: mousePos.x,
         top: mousePos.y,
-        width: '12px',
-        height: '12px',
-        backgroundColor: '#ffffff',
+        width: cursorType === 'pointer' ? '8px' : '10px',
+        height: cursorType === 'pointer' ? '8px' : '10px',
+        border: '1.5px solid #f0ece4',
         borderRadius: '50%',
         pointerEvents: 'none',
         transform: 'translate(-50%, -50%)',
-        zIndex: 999999
+        zIndex: 999999,
+        transition: 'width 0.1s, height 0.1s, background 0.1s',
+        background: cursorType === 'zoom-in' ? '#f0ece4' : 'transparent',
       }} />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 420px', overflow: 'hidden', height: '100vh' }}>
@@ -511,12 +524,11 @@ export default function PhotoBooth() {
       <canvas ref={snapCanvas} style={{ display: 'none' }} />
 
       <style>{`
+        * { cursor: none !important; }
         button:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.05); }
         button:active:not(:disabled) { transform: translateY(0px); }
         ::-webkit-scrollbar { width: 6px; background: #121212; }
         ::-webkit-scrollbar-thumb { background: #222; border-radius: 10px; }
-        input[type=range] { cursor: none; }
-        a { cursor: none; }
       `}</style>
     </div>
   )
