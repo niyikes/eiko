@@ -297,7 +297,7 @@ export default function PhotoBooth() {
     return snap.toDataURL('image/jpeg', 0.92)
   }, [])
 
-  const runStrip = useCallback((total: number) => {
+const runStrip = useCallback((total: number) => {
     setShooting(true)
     setStripDone(false)
     setTakenCount(0)
@@ -323,6 +323,26 @@ export default function PhotoBooth() {
     }
     takeOne()
   }, [flash, shoot])
+
+  const reshootFrame = useCallback((idx: number) => {
+    if (counting || shooting || !cameraOn) return
+    setShooting(true)
+    setCounting(true)
+    let n = 3
+    setCountNum(n)
+    const cd = setInterval(() => {
+      n--
+      if (n <= 0) {
+        clearInterval(cd)
+        setCounting(false)
+        flash()
+        const url = shoot()
+        setFrames(prev => { const next = [...prev]; next[idx] = url; return next })
+        setShooting(false)
+        setStripDone(true)
+      } else { setCountNum(n) }
+    }, 650)
+  }, [counting, shooting, cameraOn, flash, shoot])
 
   const handleShoot = useCallback(() => {
     if (counting || shooting) return
@@ -352,6 +372,48 @@ export default function PhotoBooth() {
   const textureBg = currentTexture
     ? `url("${currentTexture}") center/cover no-repeat`
     : 'none'
+
+
+  const downloadStrip = useCallback(async () => {
+  const filled = frames.filter(Boolean) as string[]
+  if (!filled.length) return
+
+    const img_w = 600
+    const img_h = 400
+    const pad = 20
+    const label_h = 80
+    const total_h = (img_h + pad) * filled.length + pad + label_h
+
+    const out = document.createElement('canvas')
+    out.width = img_w + pad*2
+    out.height = total_h
+    const ctx = out.getContext('2d')!
+
+    ctx.fillStyle = '#000'
+    ctx.fillRect(0,0, out.width, out.height)
+
+    for (let i=0; i<filled.length; i++) {
+      await new Promise<void>(res => {
+        const img = new Image()
+        img.onload = () => {
+          ctx.drawImage(img, pad, pad+i*(img_h+pad), img_w, img_h)
+          res()
+        }
+        img.src = filled[i]
+      })
+    }
+
+    ctx.fillStyle = '#f0ece4'
+    ctx.font = 'bold 42px serif'
+    ctx.letterSpacing = '8px'
+    ctx.textAlign = 'center'
+    ctx.fillText('eiko', out.width/2, total_h - 22)
+    const link = document.createElement('a')
+    link.href = out.toDataURL('image/jpeg', 0.95)
+    link.download = `eiko-${Date.now()}.jpg`
+    link.click()
+
+  }, [frames])
 
   return (
     <div style={{ background: '#0d0d0d', color: W, fontFamily: mono, height: '100vh', width: '100%', display: 'grid', position: 'relative', overflow: 'hidden', cursor: 'none' }}>
@@ -415,28 +477,55 @@ export default function PhotoBooth() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', height: 120, flexShrink: 0, borderRadius: 16, overflow: 'hidden', background: '#121212', border: BDR, padding: 8, gap: 8, zIndex: 1 }}>
-            {frames.map((frame, i) => (
-              <div
-                key={i}
-                onClick={() => frame && setSelectedFrame(frame)}
-                onMouseEnter={() => { if (frame) setCursorType('zoom-in') }}
+        <div style={{ display: 'flex', height: 120, flexShrink: 0, borderRadius: 16, overflow: 'hidden', background: '#121212', border: BDR, padding: 8, gap: 8, zIndex: 1 }}>
+          {frames.map((frame, i) => (
+            <div
+              key={i}
+              style={{ flex: 1, background: '#050505', position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: frame ? '1px solid #333' : '1px dashed #222' }}
+            >
+              {frame ? (
+                <>
+                  <img
+                    src={frame}
+                    onClick={() => setSelectedFrame(frame)}
+                    onMouseEnter={() => setCursorType('zoom-in')}
+                    onMouseLeave={() => setCursorType('default')}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in' }}
+                    alt=""
+                  />
+                  <button
+                    onClick={() => reshootFrame(i)}
+                    onMouseEnter={() => setCursorType('pointer')}
+                    onMouseLeave={() => setCursorType('default')}
+                    style={{ position: 'absolute', top: 4, right: 4, background: '#000000cc', border: '1px solid #444', color: '#f0ece4', fontFamily: pixFont, fontSize: 8, padding: '3px 6px', borderRadius: 4, cursor: 'pointer', letterSpacing: '0.1em', backdropFilter: 'blur(4px)' }}
+                  >
+                    ↺
+                  </button>
+                </>
+              ) : (
+                <span style={{ fontFamily: pixFont, fontSize: 16, color: '#222' }}>✕</span>
+              )}
+              <span style={{ position: 'absolute', bottom: 6, left: 8, fontFamily: pixFont, fontSize: 9, color: DIM, letterSpacing: '0.1em' }}>{String(i + 1).padStart(2, '0')}</span>
+            </div>
+          ))}
+          
+          {stripDone && (
+              <button
+                onClick={downloadStrip}
+                onMouseEnter={() => setCursorType('pointer')}
                 onMouseLeave={() => setCursorType('default')}
-                style={{ flex: 1, background: '#050505', position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: frame ? 'zoom-in' : 'default', borderRadius: 8, border: frame ? '1px solid #333' : '1px dashed #222' }}
+                style={{ flexShrink: 0, width: 36, background: '#f0ece4', border: 'none', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: pixFont, fontSize: 10, color: '#000', writingMode: 'vertical-rl', letterSpacing: '0.15em', fontWeight: 'bold' }}
               >
-                {frame
-                  ? <img src={frame} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-                  : <span style={{ fontFamily: pixFont, fontSize: 16, color: '#222' }}>✕</span>
-                }
-                <span style={{ position: 'absolute', bottom: 6, left: 8, fontFamily: pixFont, fontSize: 9, color: DIM, letterSpacing: '0.1em' }}>{String(i + 1).padStart(2, '0')}</span>
-              </div>
-            ))}
+                ↓ SAVE
+              </button>
+            )}
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', borderLeft: BDR, padding: '24px 0', position: 'relative' }}>
 
-          <div style={{
+      <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', borderLeft: BDR, padding: '24px 0', position: 'relative' }}>
+
+        <div style={{
             position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
             background: textureBg,
             opacity: 0.5,
