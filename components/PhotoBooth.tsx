@@ -417,7 +417,7 @@ const cx = out.width / 2
     ctx.fillText('eiko', cx, ty)
     ctx.restore()
 
-    
+
     // grain
     const label_top = total_h - label_h
     const grain_data = ctx.getImageData(0, label_top, out.width, label_h)
@@ -432,8 +432,10 @@ const cx = out.width / 2
 
     const link = document.createElement('a')
     link.href = out.toDataURL('image/jpeg', 0.95)
-    link.download = `eiko-${Date.now()}.jpg`
-    link.click()
+    const now = new Date()
+    const date = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`
+    const time = `${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`
+    link.download = `eiko-${date}-${time}.jpg`
 
   }, [frames])
 
