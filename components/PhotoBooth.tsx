@@ -377,7 +377,8 @@ const runStrip = useCallback((total: number) => {
 
   const downloadStrip = useCallback(async () => {
   const filled = frames.filter(Boolean) as string[]
-  if (!filled.length) return
+    if (!filled.length) return
+    await document.fonts.ready
 
     const img_w = 600
     const img_h = 450
@@ -404,11 +405,30 @@ const runStrip = useCallback((total: number) => {
       })
     }
 
-    ctx.fillStyle = 'rgba(255,255,255,0.9)'
-    ctx.font = '300 32px "Harmond", "Garamond", "Georgia", serif'
-    ctx.letterSpacing = '6px'
+const cx = out.width / 2
+    const ty = total_h - 28
+    ctx.save()
+    ctx.font = '400 32px "Pixelify Sans", monospace'
     ctx.textAlign = 'center'
-    ctx.fillText('eiko', out.width / 2, total_h - 28)
+    ctx.letterSpacing = '4px'
+    ctx.shadowColor = 'rgba(255,255,255,0.6)'
+    ctx.shadowBlur = 14
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'
+    ctx.fillText('eiko', cx, ty)
+    ctx.restore()
+
+    
+    // grain
+    const label_top = total_h - label_h
+    const grain_data = ctx.getImageData(0, label_top, out.width, label_h)
+    const gd = grain_data.data
+    for (let gi = 0; gi < gd.length; gi += 4) {
+      const noise = (Math.random() - 0.5) * 60
+      gd[gi] = Math.min(255, Math.max(0, gd[gi] + noise))
+      gd[gi+1] = Math.min(255, Math.max(0, gd[gi+1] + noise))
+      gd[gi+2] = Math.min(255, Math.max(0, gd[gi+2] + noise))
+    }
+    ctx.putImageData(grain_data, 0, label_top)
 
     const link = document.createElement('a')
     link.href = out.toDataURL('image/jpeg', 0.95)
