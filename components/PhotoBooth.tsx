@@ -46,7 +46,7 @@ const sidebar_filters = [
     ]
   },
   {
-    label: 'FILM LOOK',
+    label: 'color',
     filters: [
       { id: 'bw', label: 'B&W' },
       { id: 'sepia', label: 'SEPIA' },
@@ -562,7 +562,6 @@ const cx = out.width / 2
           <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0, background: '#121212', opacity: 0.4 }} />
 
           <div style={{ borderBottom: BDR, padding: '0 24px 24px 24px', position: 'relative', zIndex: 1 }}>
-            <div style={{ fontFamily: display, fontSize: 14, letterSpacing: '0.2em', color: DIM, marginBottom: 16 }}>SHOOT MODE</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
               {([['1', 'SINGLE'], ['4', 'STRIP 4×'], ['6', 'BURST 6×']] as [Mode, string][]).map(([m, label]) => (
                 <button
