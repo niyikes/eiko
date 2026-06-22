@@ -1,4 +1,4 @@
-# eiko
+# eiko-booth
 a cool ass photo booth
 
 ## features
